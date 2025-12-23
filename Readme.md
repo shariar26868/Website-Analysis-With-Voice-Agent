@@ -197,6 +197,12 @@ trufindai-backend/
 ├── docker-compose.yml         
 └── README.md
 ```
+---
+## How to Run
+
+uvicorn main:app --reload
+---
+
 
 ---
 
