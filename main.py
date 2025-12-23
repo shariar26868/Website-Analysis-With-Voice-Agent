@@ -1,6 +1,12 @@
 """
 TruFindAI Backend - Debug Version
 """
+
+import asyncio
+import sys
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 print("=" * 50)
 print("STARTING TRUFINDAI BACKEND")
 print("=" * 50)
