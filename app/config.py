@@ -85,3 +85,4 @@ class Database:
 def get_db():
     """Get database instance (FastAPI dependency)"""
     return Database.get_database()
+
