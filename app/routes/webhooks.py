@@ -4,7 +4,7 @@ Twilio Webhook Handlers
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 from twilio.twiml.voice_response import VoiceResponse
-
+from typing import Optional
 from app.services.sara_agent import handle_voice_input, start_conversation
 from app.utils import logger
 

@@ -58,6 +58,14 @@
 #                 "industry": "Plumbing"
 #             }
 #         }
+    
+#     def to_mongo_dict(self):
+#         """Convert to MongoDB-compatible dict"""
+#         data = self.model_dump()
+#         # Convert Pydantic URL to string
+#         if 'website_url' in data:
+#             data['website_url'] = str(data['website_url'])
+#         return data
 
 
 # # Analysis Result Model
@@ -179,6 +187,9 @@
 #     duration: Optional[int] = None
 
 
+
+
+
 """
 MongoDB Models and Schemas
 """
@@ -216,8 +227,10 @@ class Lead(BaseModel):
     # Analysis data
     ai_visibility_score: Optional[int] = None
     seo_score: Optional[int] = None
+    overall_score: Optional[int] = None  # New field
     top_issues: Optional[List[str]] = []
     analysis_data: Optional[Dict[str, Any]] = {}
+    analysis_type: Optional[str] = "quick"  # New field: "quick" or "deep"
     
     # Call tracking
     call_status: CallStatus = CallStatus.PENDING

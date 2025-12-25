@@ -3,7 +3,7 @@ Call Recordings API Routes
 """
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
-
+from typing import Optional
 from app.config import get_db
 from app.models import RecordingResponse
 from app.services.storage_service import get_recording_url
