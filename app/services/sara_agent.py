@@ -44,8 +44,8 @@ async def initiate_sara_call(lead_id: str, lead_data: Dict[str, Any], phone_numb
         call_log_id = str(result.inserted_id)
         
         # Prepare webhook URL (this should be your public URL)
-        webhook_url = f"https://your-domain.com/api/v1/webhooks/twilio/voice?lead_id={lead_id}&call_log_id={call_log_id}"
-        status_callback = f"https://your-domain.com/api/v1/webhooks/twilio/status"
+        webhook_url = f"https://richelle-nonfictive-derivationally.ngrok-free.dev/api/v1/webhooks/twilio/voice?lead_id={lead_id}&call_log_id={call_log_id}"
+        status_callback = f"https://richelle-nonfictive-derivationally.ngrok-free.dev/api/v1/webhooks/twilio/status"
         
         # Make call via Twilio
         call_result = await make_call(
