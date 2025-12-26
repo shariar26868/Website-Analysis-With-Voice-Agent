@@ -161,6 +161,139 @@
 #Final Update------------------
 
 
+# """
+# Twilio Webhook Handlers
+# """
+# from fastapi import APIRouter, Request, Response
+# from twilio.twiml.voice_response import VoiceResponse
+# from app.services.sara_agent import handle_voice_input, start_conversation
+# from app.utils import logger
+# from datetime import datetime
+
+# router = APIRouter()
+
+
+# @router.post("/twilio/voice")
+# async def twilio_voice_webhook(request: Request):
+#     try:
+#         form_data = await request.form()
+#         logger.info(f"Twilio voice webhook received: {dict(form_data)}")
+
+#         call_sid = form_data.get("CallSid")
+#         twiml_response = await start_conversation(call_sid, form_data)
+
+#         return Response(content=str(twiml_response), media_type="application/xml")
+
+#     except Exception as e:
+#         logger.error(f"Twilio voice webhook error: {str(e)}")
+#         response = VoiceResponse()
+#         response.say("Sorry, there was an error. Please try again later.")
+#         return Response(content=str(response), media_type="application/xml")
+
+
+# @router.post("/twilio/gather")
+# async def twilio_gather_webhook(request: Request):
+#     try:
+#         form_data = await request.form()
+#         logger.info("Twilio gather webhook received")
+
+#         call_sid = form_data.get("CallSid")
+#         speech_result = form_data.get("SpeechResult", "")
+
+#         twiml_response = await handle_voice_input(call_sid, speech_result)
+
+#         return Response(content=str(twiml_response), media_type="application/xml")
+
+#     except Exception as e:
+#         logger.error(f"Twilio gather webhook error: {str(e)}")
+#         response = VoiceResponse()
+#         response.say("Sorry, I didn't catch that. Please repeat.")
+#         response.redirect("/api/v1/webhooks/twilio/gather")
+#         return Response(content=str(response), media_type="application/xml")
+
+
+# @router.post("/twilio/status")
+# async def twilio_status_webhook(request: Request):
+#     try:
+#         form_data = await request.form()
+#         logger.info(f"Twilio status webhook: {dict(form_data)}")
+
+#         call_sid = form_data.get("CallSid")
+#         call_status = form_data.get("CallStatus")
+#         call_duration = form_data.get("CallDuration")
+
+#         from app.config import get_db
+#         db = get_db()
+
+#         await db.call_logs.update_one(
+#             {"call_sid": call_sid},
+#             {
+#                 "$set": {
+#                     "status": call_status,
+#                     "call_duration": int(call_duration) if call_duration else None,
+#                     "ended_at": datetime.utcnow() if call_status == "completed" else None
+#                 }
+#             },
+#             upsert=True
+#         )
+
+#         logger.info(f"Call {call_sid} status updated to {call_status}")
+#         return {"success": True}
+
+#     except Exception as e:
+#         logger.error(f"Twilio status webhook error: {str(e)}")
+#         return {"success": False, "error": str(e)}
+
+
+# @router.post("/twilio/recording")
+# async def twilio_recording_webhook(request: Request):
+#     try:
+#         form_data = await request.form()
+#         logger.info("Twilio recording webhook received")
+
+#         call_sid = form_data.get("CallSid")
+#         recording_url = form_data.get("RecordingUrl")
+#         recording_sid = form_data.get("RecordingSid")
+#         recording_duration = form_data.get("RecordingDuration")
+
+#         from app.config import get_db
+#         from app.services.storage_service import download_and_upload_recording
+
+#         db = get_db()
+
+#         s3_url = await download_and_upload_recording(recording_url, call_sid)
+
+#         await db.call_logs.update_one(
+#             {"call_sid": call_sid},
+#             {
+#                 "$set": {
+#                     "recording_url": recording_url,
+#                     "recording_s3_url": s3_url,
+#                     "recording_sid": recording_sid,
+#                     "recording_duration": int(recording_duration) if recording_duration else None
+#                 }
+#             },
+#             upsert=True
+#         )
+
+#         logger.info(f"Recording saved for call {call_sid}")
+#         return {"success": True}
+
+#     except Exception as e:
+#         logger.error(f"Twilio recording webhook error: {str(e)}")
+#         return {"success": False, "error": str(e)}
+
+
+# @router.get("/test")
+# async def test_webhook():
+#     return {
+#         "success": True,
+#         "message": "Twilio webhook endpoint working"
+#     }
+
+
+
+####################################################
 """
 Twilio Webhook Handlers
 """
@@ -247,6 +380,10 @@ async def twilio_status_webhook(request: Request):
 
 @router.post("/twilio/recording")
 async def twilio_recording_webhook(request: Request):
+    """
+    Twilio recording webhook - handles recording completion
+    Downloads, uploads to S3, transcribes, and generates summary
+    """
     try:
         form_data = await request.form()
         logger.info("Twilio recording webhook received")
@@ -258,29 +395,89 @@ async def twilio_recording_webhook(request: Request):
 
         from app.config import get_db
         from app.services.storage_service import download_and_upload_recording
+        from app.services.transcription_service import process_recording
+        from app.services.twilio_service import download_recording
 
         db = get_db()
 
+        # Step 1: Upload to S3
+        logger.info(f"Uploading recording to S3 for call {call_sid}...")
         s3_url = await download_and_upload_recording(recording_url, call_sid)
 
+        # Step 2: Download audio for transcription
+        logger.info(f"Downloading audio for transcription...")
+        audio_data = await download_recording(recording_url)
+        
+        # Step 3: Process transcription and generate summary
+        transcription_result = {
+            "transcript": None,
+            "summary": None,
+            "key_points": [],
+            "objections": []
+        }
+        
+        if audio_data:
+            logger.info(f"Processing transcription for call {call_sid}...")
+            try:
+                transcription_result = await process_recording(call_sid, audio_data)
+                logger.info(f"Transcription completed for call {call_sid}")
+            except Exception as transcribe_error:
+                logger.error(f"Transcription failed for call {call_sid}: {str(transcribe_error)}")
+        else:
+            logger.warning(f"No audio data available for transcription for call {call_sid}")
+        
+        # Step 4: Update database with all data
+        update_data = {
+            "recording_url": recording_url,
+            "recording_s3_url": s3_url,
+            "recording_sid": recording_sid,
+            "recording_duration": int(recording_duration) if recording_duration else None,
+            "transcript": transcription_result.get("transcript"),
+            "conversation_summary": transcription_result.get("summary"),
+            "key_points": transcription_result.get("key_points", []),
+            "objections": transcription_result.get("objections", [])
+        }
+        
         await db.call_logs.update_one(
             {"call_sid": call_sid},
-            {
-                "$set": {
-                    "recording_url": recording_url,
-                    "recording_s3_url": s3_url,
-                    "recording_sid": recording_sid,
-                    "recording_duration": int(recording_duration) if recording_duration else None
-                }
-            },
+            {"$set": update_data},
             upsert=True
         )
 
-        logger.info(f"Recording saved for call {call_sid}")
-        return {"success": True}
+        logger.info(f"Recording and transcription data saved for call {call_sid}")
+        
+        return {
+            "success": True,
+            "call_sid": call_sid,
+            "transcript_generated": transcription_result.get("transcript") is not None,
+            "summary_generated": transcription_result.get("summary") is not None
+        }
 
     except Exception as e:
         logger.error(f"Twilio recording webhook error: {str(e)}")
+        
+        # Still try to save basic recording info even if transcription fails
+        try:
+            from app.config import get_db
+            db = get_db()
+            
+            await db.call_logs.update_one(
+                {"call_sid": call_sid},
+                {
+                    "$set": {
+                        "recording_url": recording_url,
+                        "recording_sid": recording_sid,
+                        "recording_duration": int(recording_duration) if recording_duration else None,
+                        "transcript": None,
+                        "conversation_summary": None
+                    }
+                },
+                upsert=True
+            )
+            logger.info(f"Basic recording info saved despite error")
+        except:
+            pass
+        
         return {"success": False, "error": str(e)}
 
 
