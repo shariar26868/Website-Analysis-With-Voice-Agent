@@ -121,3 +121,8 @@ async def get_statistics():
     except Exception as e:
         logger.error(f"Failed to get statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+from pydantic import BaseSettings
+from typing import Optional 
