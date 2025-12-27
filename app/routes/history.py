@@ -123,6 +123,3 @@ async def get_statistics():
         raise HTTPException(status_code=500, detail=str(e))
     
 
-
-from pydantic import BaseSettings
-from typing import Optional 
